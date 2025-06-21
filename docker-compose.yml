@@ -1,0 +1,21 @@
+version: '3.9'
+
+services:
+  json-api:
+    build: .
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 50M
+        reservations:
+          memory: 20M
+    environment:
+      - GOGC=20  # More aggressive garbage collection
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3 
