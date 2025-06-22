@@ -58,8 +58,8 @@ test_parse_all() {
     echo -e "${RED}⚠️  WARNING: This will load entire file into memory and likely cause OOM!${NC}"
     
     start_time=$(date +%s)
-    time sleep 30
-    response=$(curl -X POST http://localhost:8080/parse \
+    time sleep 5
+    response=$(curl -X POST http://localhost:8080/parse-all \
      -H "Content-Type: application/json" \
      --data-binary @data.json)
     exit_code=$?
