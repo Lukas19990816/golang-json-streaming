@@ -38,7 +38,9 @@ test_parse_streaming() {
     echo "This will process the large JSON file with streaming parser..."
     
     start_time=$(date +%s)
-    response=$(curl -s http://localhost:8080/parse)
+    response=$(curl -X POST http://localhost:8080/parse \
+     -H "Content-Type: application/json" \
+     --data-binary @data.json)
     end_time=$(date +%s)
     
     if [[ $? -eq 0 ]]; then
@@ -56,7 +58,10 @@ test_parse_all() {
     echo -e "${RED}⚠️  WARNING: This will load entire file into memory and likely cause OOM!${NC}"
     
     start_time=$(date +%s)
-    response=$(timeout 30 curl -s http://localhost:8080/parse-all)
+    time sleep 30
+    response=$(curl -X POST http://localhost:8080/parse \
+     -H "Content-Type: application/json" \
+     --data-binary @data.json)
     exit_code=$?
     end_time=$(date +%s)
     

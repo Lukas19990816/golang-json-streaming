@@ -2,76 +2,155 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
-	"os"
 	"runtime"
 	"time"
 )
 
 type Entry struct {
 	ID    int    `json:"id"`
-	Value string `json:"value"`
+	Value []Node `json:"value"`
+	Pod   []Pod  `json:"pod"`
+}
+
+type Node struct {
+	NodeId   string `json:"nodeId"`
+	NodeName string `json:"nodeName"`
+}
+
+type Pod struct {
+	PodId   string `json:"podId"`
+	PodName string `json:"podName"`
 }
 
 type MemoryStats struct {
-	Alloc      uint64 `json:"alloc"`
-	TotalAlloc uint64 `json:"total_alloc"`
-	Sys        uint64 `json:"sys"`
-	NumGC      uint32 `json:"num_gc"`
+	Alloc      float64 `json:"alloc"`
+	TotalAlloc float64 `json:"total_alloc"`
+	Sys        float64 `json:"sys"`
+	NumGC      uint32  `json:"num_gc"`
 }
 
 func getMemoryStats() MemoryStats {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	return MemoryStats{
-		Alloc:      m.Alloc / 1024 / 1024,      // MB
-		TotalAlloc: m.TotalAlloc / 1024 / 1024, // MB
-		Sys:        m.Sys / 1024 / 1024,        // MB
+		Alloc:      float64(m.Alloc) / (1024 * 1024),      // MB as float64
+		TotalAlloc: float64(m.TotalAlloc) / (1024 * 1024), // MB as float64
+		Sys:        float64(m.Sys) / (1024 * 1024),        // MB as float64
 		NumGC:      m.NumGC,
 	}
 }
 
 func streamHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	log.Println("receive streaming request")
 
-	file, err := os.Open("data.json")
-	if err != nil {
-		http.Error(w, "failed to open file", http.StatusInternalServerError)
-		return
-	}
-	defer file.Close()
+	// 使用 r.Body 來流式讀取 JSON 資料，避免一次性載入記憶體
+	decoder := json.NewDecoder(r.Body)
 
-	decoder := json.NewDecoder(file)
-
-	// 開始解析 JSON 陣列
 	t, err := decoder.Token()
-	if err != nil || t != json.Delim('[') {
-		http.Error(w, "invalid JSON array", http.StatusBadRequest)
-		return
+	if err != nil {
+		log.Fatal(err)
 	}
+	log.Printf("%T: %v\n", t, t)
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
 
 	count := 0
+
 	for decoder.More() {
-		var entry Entry
-		if err := decoder.Decode(&entry); err != nil {
+		var Node Node
+		if err := decoder.Decode(&Node); err != nil {
 			http.Error(w, "decode error", http.StatusInternalServerError)
 			return
 		}
+
+		log.Println(Node)
+
 		count++
 
-		// Force garbage collection every 10000 records
+		// 強制 GC 每處理 10k 筆資料，幫助釋放記憶體
 		if count%10000 == 0 {
 			runtime.GC()
 		}
+
+		stats := getMemoryStats()
+		log.Printf("Processed %d records. Current memory usage: %.2fMB", count, stats.Alloc)
 	}
 
-	// Read the closing delimiter
 	t, err = decoder.Token()
-	if err != nil || t != json.Delim(']') {
-		http.Error(w, "invalid JSON array end", http.StatusBadRequest)
-		return
+	if err != nil {
+		log.Fatal(err)
 	}
+	log.Printf("%T: %v\n", t, t)
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
+
+	for decoder.More() {
+		var Pod Pod
+		if err := decoder.Decode(&Pod); err != nil {
+			http.Error(w, "decode error", http.StatusInternalServerError)
+			return
+		}
+
+		log.Println(Pod)
+
+		count++
+
+		// 強制 GC 每處理 10k 筆資料，幫助釋放記憶體
+		if count%10000 == 0 {
+			runtime.GC()
+		}
+
+		stats := getMemoryStats()
+		log.Printf("Processed %d records. Current memory usage: %.2fMB", count, stats.Alloc)
+	}
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
+
+	t, err = decoder.Token()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("%T: %v\n", t, t)
 
 	duration := time.Since(start)
 	memStats := getMemoryStats()
@@ -94,7 +173,7 @@ func parseAllHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("⚠️  WARNING: Using non-streaming parser - will load entire file into memory!")
 
 	// Read entire file into memory
-	data, err := os.ReadFile("data.json")
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read file", http.StatusInternalServerError)
 		return
@@ -105,13 +184,12 @@ func parseAllHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("📊 Memory after file read: %+v", memStatsAfterRead)
 
 	// Parse entire JSON array into memory
-	var entries []Entry
+	var entries Entry
 	if err := json.Unmarshal(data, &entries); err != nil {
 		http.Error(w, "failed to parse JSON", http.StatusInternalServerError)
 		return
 	}
 
-	count := len(entries)
 	duration := time.Since(start)
 
 	// Force GC to see real memory usage
@@ -122,11 +200,10 @@ func parseAllHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]interface{}{
-		"method":         "load-all",
-		"records_parsed": count,
-		"duration_ms":    duration.Milliseconds(),
-		"memory_stats":   memStats,
-		"file_size_mb":   float64(len(data)) / 1024 / 1024,
+		"method":       "load-all",
+		"duration_ms":  duration.Milliseconds(),
+		"memory_stats": memStats,
+		"file_size_mb": float64(len(data)) / 1024 / 1024,
 	}
 
 	json.NewEncoder(w).Encode(response)

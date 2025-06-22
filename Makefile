@@ -15,7 +15,7 @@ run: build
 
 # Build docker image
 docker-build:
-	docker-compose build
+	podman-compose build
 
 # Run with docker
 docker-run: generate docker-build

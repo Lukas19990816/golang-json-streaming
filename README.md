@@ -38,6 +38,12 @@ A memory-efficient Golang API server that can process large JSON files using str
    curl http://localhost:8080/health
    ```
 
+   ```bash
+   curl -X POST http://localhost:8080/parse \
+     -H "Content-Type: application/json" \
+     --data-binary @data.json
+   ```
+
 4. **Monitor memory usage:**
    ```bash
    docker stats
